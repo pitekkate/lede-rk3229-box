@@ -35,6 +35,14 @@ define Build/rkbin/Target
   endef
 endef
 
+# ====== Tambahkan RK3229 di sini ======
+define Trusted-Firmware-A/rk3229
+  BUILD_SUBTARGET:=armv7
+  ATF:=rk32/rk322xh_bl31_v1.49.elf
+  TPL:=rk32/rk322xh_ddr_333MHz_v1.09.bin
+endef
+# ======================================
+
 define rkbin/rk3328
   DEPENDS:=@TARGET_rockchip_armv8
   ATF:=rk33/rk322xh_bl31_v1.49.elf
@@ -80,6 +88,7 @@ define rkbin/rk3588
 endef
 
 VARIANTS:= \
+        rk3229 \
 	rk3328 \
 	rk3399 \
 	rk3528 \
