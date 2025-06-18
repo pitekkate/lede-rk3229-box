@@ -31,6 +31,8 @@ define U-Boot/rk3229_box
   DEPENDS:=+PACKAGE_u-boot-$(1):rkbin-rk322x
   ATF:=rk322x_bl31.elf
   USE_RKBIN:=1
+  # ENVS:=rk322x-env.txt
+  # CONFIG:=rk322x_box
 endef
 
 # RK3328 boards
