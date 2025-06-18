@@ -18,6 +18,13 @@ PKG_MIRROR_HASH:=918f05ad98cb4a6fdd713b874d794d1aefc2a644025bca418f877c5f9c0f60c
 
 include $(INCLUDE_DIR)/package.mk
 
+define Package/ssv6158-firmware
+  SECTION:=firmware
+  CATEGORY:=Firmware
+  TITLE:=Firmware for SSV6158 WiFi chip
+  URL:=https://github.com/armbian/firmware
+endef
+
 define Package/brcmfmac-firmware-default
   SECTION:=firmware
   CATEGORY:=Firmware
@@ -43,6 +50,13 @@ endef
 define Build/Compile
 	true
 endef
+
+define Package/ssv6158-firmware/install
+	$(INSTALL_DIR) $(1)/lib/firmware/ssv6xxx
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/ssv6xxx/ssv6158.bin $(1)/lib/firmware/ssv6xxx/
+endef
+
+$(eval $(call BuildPackage,ssv6158-firmware))
 
 define Package/brcmfmac-firmware-43752-sdio/install
 	$(INSTALL_DIR) $(1)/lib/firmware/brcm
