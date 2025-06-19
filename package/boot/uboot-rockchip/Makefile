@@ -23,16 +23,15 @@ endef
 
 #Rk322x Boards
 
-define U-Boot/rk3229_box
-  BUILD_SUBTARGET:=armv7
-  NAME:=RK3229 Box
-  BUILD_DEVICES:= \
-     rockchip_rk3229-box
-  DEPENDS:=+PACKAGE_u-boot-$(1):rkbin-rk322x
-  ATF:=rk322x_bl31.elf
-  USE_RKBIN:=1
-  # ENVS:=rk322x-env.txt
-  # CONFIG:=rk322x_box
+define KernelPackage/boot/uboot-rockchip
+  TITLE:=U-Boot for Rockchip devices
+  URL:=https://github.com/u-boot/u-boot 
+  MAINTAINER:=OpenWrt Developers
+  SUBMENU:=Bootloaders
+  DEPENDS:=@TARGET_rockchip
+  VERSION:=$(UBOOT_RELEASE)
+  BOARD_SUBDIRS = $(UBOOT_BUILD_DIR)/configs
+  FILES:=$(UBOOT_BUILD_DIR)/u-boot.bin
 endef
 
 # RK3328 boards
