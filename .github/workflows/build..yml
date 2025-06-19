@@ -1,10 +1,11 @@
 # 
-# <https://github.com/KFERMercer/OpenWrt-CI>
+# <https://github.com/KFERMercer/OpenWrt-CI>  
 #
 # Copyright (C) 2019 P3TERX
 #
 # Copyright (C) 2020 KFERMercer
 #
+
 name: Build Rk3229 Openwrt 
 
 on:
@@ -45,35 +46,41 @@ jobs:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
         with:
-          # this might remove tools that are actually needed,
-          # if set to "true" but frees about 6 GB
           tool-cache: true
-          # all of these default to true, but feel free to set to
-          # "false" if necessary for your workflow
           android: true
           dotnet: true
           haskell: true
           large-packages: true
           swap-storage: true
 
+      - name: Clone OpenWrt Source
+        run: |
+          git clone --depth=1 https://github.com/pitekkate/lede-rk3229-box  openwrt
+
       - name: Update feeds
+        working-directory: ./openwrt
         run: |
           sed -i 's/#src-git helloworld/src-git helloworld/g' ./feeds.conf.default
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          
-      - name: Download config file
+
+      - name: Download and Apply Config
         run: |
           curl -o Rk3229-box.config https://raw.githubusercontent.com/pitekkate/AutoBuild-OpenWrt-rk3229-box/refs/heads/master/Rk3229-box.config 
           cp Rk3229-box.config openwrt/.config
-    
+
       - name: Generate configuration file
-        run: make defconfig
+        working-directory: ./openwrt
+        run: |
+          make defconfig
 
       - name: Download packages
-        run: make download -j16
+        working-directory: ./openwrt
+        run: |
+          make download -j16
 
       - name: Compile firmware
+        working-directory: ./openwrt
         run: |
           make -j$(nproc) || make -j1 V=s
           echo "======================="
@@ -86,12 +93,13 @@ jobs:
           du -h --max-depth=1 ./bin
 
       - name: Prepare artifact
+        working-directory: ./openwrt
         run: |
-          mkdir -p ./artifact/package
-          mkdir -p ./artifact/buildinfo
+          mkdir -p ../artifact/package
+          mkdir -p ../artifact/buildinfo
           rm -rf $(find ./bin/targets/ -type d -name "packages")
-          cp -rf $(find ./bin/packages/ -type f -name "*.ipk") ./artifact/package/
-          cp -rf $(find ./bin/targets/ -type f -name "*.buildinfo" -o -name "*.manifest") ./artifact/buildinfo/
+          cp -rf $(find ./bin/packages/ -type f -name "*.ipk") ../artifact/package/
+          cp -rf $(find ./bin/targets/ -type f -name "*.buildinfo" -o -name "*.manifest") ../artifact/buildinfo/
 
       - name: Upload buildinfo
         uses: actions/upload-artifact@v4
@@ -109,4 +117,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: OpenWrt_firmware
-          path: ./bin/targets/
+          path: ./openwrt/bin/targets/
