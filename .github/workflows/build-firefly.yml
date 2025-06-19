@@ -50,7 +50,7 @@ jobs:
 
       - name: Clone OpenWrt Source
         run: |
-          git clone --depth=1 --branch rk3229-firefly https://github.com/pitekkate/lede-rk3229-box openwrt
+          git clone --depth=1 --branch master https://github.com/pitekkate/lede-rk3229-box  openwrt
 
       - name: Update feeds
         working-directory: ./openwrt
@@ -60,7 +60,7 @@ jobs:
 
       - name: Download and Apply Config
         run: |
-          curl -sL https://raw.githubusercontent.com/pitekkate/AutoBuild-OpenWrt-rk3229-box/master/Rk3229-box.config -o openwrt/.config
+          curl -sL https://raw.githubusercontent.com/pitekkate/AutoBuild-OpenWrt-rk3229-box/master/Rk3229-box.config  -o openwrt/.config
 
       - name: Generate configuration file
         working-directory: ./openwrt
@@ -76,22 +76,38 @@ jobs:
           make download -j$(nproc)
 
       - name: Compile firmware
+        id: build_firmware
+        continue-on-error: true
         working-directory: ./openwrt
         run: |
           echo "Starting build for RK3229 (ARMv7)"
-          make -j$(nproc) || make -j1 V=s
-          
+          make -j$(nproc) V=s 2>&1 | tee ../build.log
+
           echo "======================="
           echo "Build artifacts:"
           echo "======================="
           find ./bin/targets/rockchip/armv7/ -type f -name '*.img' || true
           echo "======================="
 
+      - name: Check if build succeeded
+        id: check_build
+        shell: bash
+        run: |
+          if grep -q 'make[1][234567]: ***' ../build.log; then
+            echo "Build failed"
+            echo "::set-output name=status::failed"
+          else
+            echo "Build succeeded"
+            echo "::set-output name=status::success"
+          fi
+        # GitHub Actions v2 doesn't support directly checking logs, so we use a workaround
+
       - name: Prepare artifact
+        if: success()
         working-directory: ./openwrt
         run: |
           mkdir -p ../artifact
-          IMG_FILE=$(find ./bin/targets/rockchip/armv7/ -name '*-sysupgrade.img' -o -name '*.img' | head -1)
+          IMG_FILE=$(find ./bin/targets/rockchip/armv7/ -type f -name '*-sysupgrade.img' -o -name '*.img' | head -1)
           
           if [ -f "$IMG_FILE" ]; then
             echo "Firmware found: $IMG_FILE"
@@ -103,7 +119,22 @@ jobs:
           fi
 
       - name: Upload firmware
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: RK3229_OpenWrt_Firmware
           path: ./artifact/*.img
+
+      - name: Upload error log
+        if: failure() || steps.check_build.outputs.status == 'failed'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-error-log
+          path: build.log
+
+      - name: Upload full build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-build-log
+          path: build.log
