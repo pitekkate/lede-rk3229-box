@@ -1,0 +1,109 @@
+name: Build Rk3229 Openwrt Firefly 
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - rk3229-firefly
+
+jobs:
+
+  build_openwrt:
+
+    name: Build OpenWrt Firmware
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Space cleanup and Initialization environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo docker rmi $(docker images -q) || true
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /etc/apt/sources.list.d /usr/local/lib/android || true
+          sudo apt-mark hold grub-efi-amd64-signed || true
+          sudo apt update -y
+          sudo apt purge -y azure-cli* docker* ghc* zulu* llvm* firefox google* dotnet* powershell* openjdk* mysql* php* mongodb* dotnet* snap* || true
+          sudo apt full-upgrade -y
+          sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+          bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gcc-multilib g++-multilib gettext \
+          genisoimage git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev \
+          libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev \
+          libreadline-dev libssl-dev libtool llvm lrzsz msmtp ninja-build p7zip p7zip-full patch pkgconf python3 \
+          python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo \
+          uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+          sudo systemctl daemon-reload
+          sudo apt autoremove --purge -y
+          sudo apt clean
+          sudo timedatectl set-timezone "Asia/Shanghai"
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+
+      - name: Clone OpenWrt Source
+        run: |
+          git clone --depth=1 --branch rk3229-firefly https://github.com/pitekkate/lede-rk3229-box openwrt
+
+      - name: Update feeds
+        working-directory: ./openwrt
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Download and Apply Config
+        run: |
+          curl -sL https://raw.githubusercontent.com/pitekkate/AutoBuild-OpenWrt-rk3229-box/master/Rk3229-box.config -o openwrt/.config
+
+      - name: Generate configuration file
+        working-directory: ./openwrt
+        run: |
+          make defconfig
+          echo "CONFIG_TARGET_rockchip_armv7=y" >> .config
+          echo "CONFIG_TARGET_rockchip_armv7_DEVICE_generic-r3229-box=y" >> .config
+          make oldconfig
+
+      - name: Download packages
+        working-directory: ./openwrt
+        run: |
+          make download -j$(nproc)
+
+      - name: Compile firmware
+        working-directory: ./openwrt
+        run: |
+          echo "Starting build for RK3229 (ARMv7)"
+          make -j$(nproc) || make -j1 V=s
+          
+          echo "======================="
+          echo "Build artifacts:"
+          echo "======================="
+          find ./bin/targets/rockchip/armv7/ -type f -name '*.img' || true
+          echo "======================="
+
+      - name: Prepare artifact
+        working-directory: ./openwrt
+        run: |
+          mkdir -p ../artifact
+          IMG_FILE=$(find ./bin/targets/rockchip/armv7/ -name '*-sysupgrade.img' -o -name '*.img' | head -1)
+          
+          if [ -f "$IMG_FILE" ]; then
+            echo "Firmware found: $IMG_FILE"
+            cp $IMG_FILE ../artifact/
+          else
+            echo "Error: Firmware not found!"
+            find ./bin/targets/ -type f
+            exit 1
+          fi
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: RK3229_OpenWrt_Firmware
+          path: ./artifact/*.img
