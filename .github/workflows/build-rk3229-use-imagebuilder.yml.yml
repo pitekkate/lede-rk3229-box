@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-name: Build RK3229 Firmware with ImageBuilder
+name: Build RK3229 OpenWrt Firmware
 
 on:
   workflow_dispatch:
@@ -9,13 +9,12 @@ on:
       - rk3229-box
 
 jobs:
-  build_openwrt_imagebuilder:
-    name: Build RK3229 Firmware using ImageBuilder
+  build_openwrt:
+    name: Build OpenWrt for RK3229 (ARMv7)
     runs-on: ubuntu-latest
     env:
-      CONFIG_URL: "https://raw.githubusercontent.com/pitekkate/AutoBuild-OpenWrt-rk3229-box/refs/heads/master/Rk3229-box.config" 
-      PROFILE_NAME: "rk3229-evb"
-      TARGET_DIR: "rockchip/armv7"
+      CONFIG_URL: "https://raw.githubusercontent.com/pitekkate/AutoBuild-OpenWrt-rk3229-box/master/Rk3229-box.config" 
+      TARGET_PROFILE: "rk3229-evb"
 
     steps:
       - name: Checkout Repository
@@ -23,74 +22,102 @@ jobs:
 
       - name: Setup Basic Environment
         run: |
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php || true
+          sudo apt-get purge -y azure-cli* docker* ghc* zulu* llvm* firefox google* dotnet* powershell* openjdk* mysql* php* mongodb* snap* || true
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential git wget curl unzip p7zip-full rsync \
-            python3 python3-pip
+            build-essential libncurses5-dev flex bison libssl-dev python3 python3-pip rsync unzip zip \
+            git wget curl bc kmod patch make gcc g++ zlib1g-dev libzstd-dev \
+            libncurses5-dev libreadline-dev libssl-dev libelf-dev liblzma-dev \
+            libudev-dev libusb-1.0-0-dev libcurl4-openssl-dev
 
       - name: Clone Source Code
         run: |
           git clone --depth=1 --branch rk3229-box https://github.com/pitekkate/lede-rk3229-box  openwrt
 
-      - name: Download ImageBuilder
+      - name: Update & Install Feeds
         working-directory: ./openwrt
         run: |
-          # Ganti dengan link imagebuilder yang sesuai
-          IMAGEBUILDER_URL="https://downloads.openwrt.org/releases/23.05-SNAPSHOT/targets/rockchip/armv7/openwrt-imagebuilder-rockchip-armv7.Linux-x86_64.tar.xz" 
-          wget -O imagebuilder.tar.xz "$IMAGEBUILDER_URL"
-          tar -xvf imagebuilder.tar.xz
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
 
-      - name: Prepare Configuration
-        working-directory: ./openwrt/openwrt-imagebuilder
+      - name: Download and Apply .config
+        working-directory: ./openwrt
         run: |
-          # Download .config dari repo kamu
+          echo "📥 Mengunduh konfigurasi..."
           curl -sL "$CONFIG_URL" -o .config
-          
-          # Pastikan profil target benar
+
+          echo "🔧 Memperbaiki konfigurasi agar tidak build ke armv8..."
+          echo "CONFIG_TARGET_rockchip=y" >> .config
           echo "CONFIG_TARGET_rockchip_armv7=y" >> .config
-          echo "CONFIG_TARGET_rockchip_armv7_DEVICE_${PROFILE_NAME}=y" >> .config
-          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          echo "CONFIG_TARGET_rockchip_armv7_DEVICE_${TARGET_PROFILE}=y" >> .config
+          echo "CONFIG_TARGET_rockchip_armv8=n" >> .config
+          echo "CONFIG_TARGET_rockchip_armv8_DEVICE_rk3328=n" >> .config
+          echo "CONFIG_TARGET_rockchip_armv8_DEVICE_rk3399=n" >> .config
+
           make defconfig
 
-      - name: Build Custom Firmware
-        working-directory: ./openwrt/openwrt-imagebuilder
+      - name: Download Packages
+        working-directory: ./openwrt
         run: |
-          echo "🔧 Building firmware for $TARGET_DIR / $PROFILE_NAME ..."
-          make image PROFILE="$PROFILE_NAME" PACKAGES="luci kmod-ssv6xxx firmware-ssv6158 haveged coremark htop luci-app-firewall luci-theme-argon"
+          echo "📦 Mengunduh semua paket..."
+          make download -j$(nproc)
 
-      - name: Check Output Files
-        working-directory: ./openwrt/openwrt-imagebuilder/bin/targets/rockchip/armv7/
+      - name: Build Firmware with Log Output
+        id: build_firmware
+        continue-on-error: true
+        working-directory: ./openwrt
         run: |
-          echo "📂 Files generated:"
-          ls -la
+          echo "🛠️ Mulai build firmware untuk RK3229 (ARMv7)"
+          make -j$(nproc) V=s 2>&1 | tee ../build.log
 
-      - name: Rename Firmware
-        working-directory: ./openwrt/openwrt-imagebuilder
+          echo "🔍 Mencari file firmware di output..."
+          find ./bin/targets/rockchip/armv7/ -type f -name "*.img" -o -name "*.tar.gz" || true
+
+      - name: Check Build Status
+        id: check_build
+        shell: bash
         run: |
-          FW_FILE=$(find bin/targets/rockchip/armv7/ -type f -name "*-sysupgrade*.tar.gz")
-          if [ -f "$FW_FILE" ]; then
-            cp "$FW_FILE" ../firmware-rk3229-sysupgrade.tar.gz
+          if grep -q 'make[1-9][0-9]*: ***' ../build.log; then
+            echo "::set-output name=status::failed"
+            exit 1
           else
-            echo "❌ Firmware not found!"
+            echo "::set-output name=status::success"
+          fi
+
+      - name: Prepare Artifact
+        if: success()
+        working-directory: ./openwrt
+        run: |
+          mkdir -p ../artifact
+          IMG_FILE=$(find ./bin/targets/rockchip/armv7/ -type f -name '*-sysupgrade.tar.gz' -o -name '*.img' | head -1)
+
+          if [ -f "$IMG_FILE" ]; then
+            echo "✅ Firmware ditemukan: $IMG_FILE"
+            cp $IMG_FILE ../artifact/
+          else
+            echo "❌ Firmware tidak ditemukan!"
+            find ./bin/targets/ -type f
             exit 1
           fi
 
-      - name: Upload Firmware Artifact
+      - name: Upload Firmware
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: OpenWrt-RK3229-Firmware
-          path: ./openwrt/firmware-rk3229-sysupgrade.tar.gz
+          name: RK3229_OpenWrt_Firmware
+          path: ./artifact/*
 
-      - name: Upload Full Log
+      - name: Upload Error Log (if failed)
+        if: failure() || steps.check_build.outputs.status == 'failed'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-error-log
+          path: ../build.log
+
+      - name: Upload Full Build Log (always)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: full-build-log
-          path: openwrt/openwrt-imagebuilder/logs/
-
-      - name: Upload Debug Info
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-info
-          path: openwrt/openwrt-imagebuilder/staging_dir/target-*/logs/
+          path: ../build.log
