@@ -8,11 +8,7 @@
 name: Build Rk3229 Openwrt 
 
 on:
-  schedule:
-    - cron: 0 20 * * *
-
-permissions:
-  contents: read
+  workflow_dispatch:
 
 jobs:
 
