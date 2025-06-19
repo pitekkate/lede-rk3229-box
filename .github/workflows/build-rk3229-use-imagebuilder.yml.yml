@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: MIT
+
+name: Build RK3229 Firmware with ImageBuilder
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - rk3229-box
+
+jobs:
+  build_openwrt_imagebuilder:
+    name: Build RK3229 Firmware using ImageBuilder
+    runs-on: ubuntu-latest
+    env:
+      CONFIG_URL: "https://raw.githubusercontent.com/pitekkate/AutoBuild-OpenWrt-rk3229-box/refs/heads/master/Rk3229-box.config" 
+      PROFILE_NAME: "rk3229-evb"
+      TARGET_DIR: "rockchip/armv7"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Basic Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git wget curl unzip p7zip-full rsync \
+            python3 python3-pip
+
+      - name: Clone Source Code
+        run: |
+          git clone --depth=1 --branch rk3229-box https://github.com/pitekkate/lede-rk3229-box  openwrt
+
+      - name: Download ImageBuilder
+        working-directory: ./openwrt
+        run: |
+          # Ganti dengan link imagebuilder yang sesuai
+          IMAGEBUILDER_URL="https://downloads.openwrt.org/releases/23.05-SNAPSHOT/targets/rockchip/armv7/openwrt-imagebuilder-rockchip-armv7.Linux-x86_64.tar.xz" 
+          wget -O imagebuilder.tar.xz "$IMAGEBUILDER_URL"
+          tar -xvf imagebuilder.tar.xz
+
+      - name: Prepare Configuration
+        working-directory: ./openwrt/openwrt-imagebuilder
+        run: |
+          # Download .config dari repo kamu
+          curl -sL "$CONFIG_URL" -o .config
+          
+          # Pastikan profil target benar
+          echo "CONFIG_TARGET_rockchip_armv7=y" >> .config
+          echo "CONFIG_TARGET_rockchip_armv7_DEVICE_${PROFILE_NAME}=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          make defconfig
+
+      - name: Build Custom Firmware
+        working-directory: ./openwrt/openwrt-imagebuilder
+        run: |
+          echo "🔧 Building firmware for $TARGET_DIR / $PROFILE_NAME ..."
+          make image PROFILE="$PROFILE_NAME" PACKAGES="luci kmod-ssv6xxx firmware-ssv6158 haveged coremark htop luci-app-firewall luci-theme-argon"
+
+      - name: Check Output Files
+        working-directory: ./openwrt/openwrt-imagebuilder/bin/targets/rockchip/armv7/
+        run: |
+          echo "📂 Files generated:"
+          ls -la
+
+      - name: Rename Firmware
+        working-directory: ./openwrt/openwrt-imagebuilder
+        run: |
+          FW_FILE=$(find bin/targets/rockchip/armv7/ -type f -name "*-sysupgrade*.tar.gz")
+          if [ -f "$FW_FILE" ]; then
+            cp "$FW_FILE" ../firmware-rk3229-sysupgrade.tar.gz
+          else
+            echo "❌ Firmware not found!"
+            exit 1
+          fi
+
+      - name: Upload Firmware Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenWrt-RK3229-Firmware
+          path: ./openwrt/firmware-rk3229-sysupgrade.tar.gz
+
+      - name: Upload Full Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-build-log
+          path: openwrt/openwrt-imagebuilder/logs/
+
+      - name: Upload Debug Info
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-info
+          path: openwrt/openwrt-imagebuilder/staging_dir/target-*/logs/
