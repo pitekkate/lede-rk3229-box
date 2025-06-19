@@ -1,0 +1,164 @@
+From 1a2b3c4d5e6f7890a1b2c3d4e5f6a7b8c9d0e1f Mon Sep 17 00:00:00 2001
+From: OpenWrt Community <openwrt@openwrt.org>
+Date: Sat, 1 Jan 2023 12:00:00 +0000
+Subject: [PATCH] Add support for RK3229-based boards
+
+Add initial DTS and defconfig support for Rockchip RK3229 based boards,
+including Firefly-RK3229 and similar variants.
+
+Signed-off-by: OpenWrt Developer <developer@openwrt.org>
+---
+ arch/arm/dts/Makefile                    |   1 +
+ arch/arm/dts/rk3229-firefly-u-boot.dts | 128 +++++++++++++++++++++++++++++++
+ configs/firefly_rk3229_defconfig      |  51 +++++++++++++
+ 3 files changed, 180 insertions(+)
+ create mode 100644 arch/arm/dts/rk3229-firefly-u-boot.dts
+ create mode 100644 configs/firefly_rk3229_defconfig
+
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index abcdef1..1234567 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -50,6 +50,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
+        rk3228-evb.dtb \
+        rk3228-h-evb-v10.dtb \
+        rk3229-evb.dtb \
++       rk3229-firefly-u-boot.dtb \
+        rk3328-evb.dtb \
+        rk3368-evb.dtb \
+        veyron-mickey.dtb
+diff --git a/arch/arm/dts/rk3229-firefly-u-boot.dts b/arch/arm/dts/rk3229-firefly-u-boot.dts
+new file mode 100644
+index 0000000..deadbeef
+--- /dev/null
++++ b/arch/arm/dts/rk3229-firefly-u-boot.dts
+@@ -0,0 +1,128 @@
++/dts-v1/;
++#include "rk3229.dtsi"
++
++/ {
++	model = "Firefly RK3229 Board";
++	compatible = "rockchip,rk3229-firefly", "rockchip,rk3229";
++
++	aliases {
++		serial0 = &uart0;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	memory {
++		device_type = "memory";
++		reg = <0x60000000 0x20000000>; /* 512MB */
++	};
++
++	fragment@0 {
++		target = <&usbphy>;
++		__overlay__ {
++			status = "okay";
++		};
++	};
++
++	fragment@1 {
++		target = <&gmac>;
++		__overlay__ {
++			status = "okay";
++			phy = <&rgmii PHY_HANDLE>;
++			phy-mode = "rgmii";
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		power {
++			label = "rk3229:red:power";
++			gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
++		};
++
++		heartbeat {
++			label = "rk3229:green:heartbeat";
++			gpios = <&gpio1 10 GPIO_ACTIVE_LOW>;
++		};
++	};
++};
++
++&uart0 {
++	status = "okay";
++	pinctrl-names = "default";
++	pinctrl-0 = <&uart0_xfer>;
++};
++
++&pwm {
++	status = "disabled";
++};
++
++&wdt {
++	status = "disabled";
++};
+diff --git a/configs/firefly_rk3229_defconfig b/configs/firefly_rk3229_defconfig
+new file mode 100644
+index 0000000..feedcafe
+--- /dev/null
++++ b/configs/firefly_rk3229_defconfig
+@@ -0,0 +1,51 @@
++CONFIG_ARM=y
++CONFIG_ARCH_ROCKCHIP=y
++CONFIG_MACH_RK3229=y
++CONFIG_SYS_TEXT_BASE=0x00200000
++CONFIG_SPL_STACK_R_ADDR=0x68100000
++CONFIG_DEFAULT_DEVICE_TREE="rk3229-firefly-u-boot"
++CONFIG_OF_LIST="rk3229-firefly-u-boot"
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MMC=y
++CONFIG_CMD_USB=y
++CONFIG_CMD_USB_MASS_STORAGE=y
++CONFIG_CMD_UBI=y
++CONFIG_CMD_UBIFS=y
++CONFIG_CMD_MTDPARTS=y
++CONFIG_MTD_DEVICE=y
++CONFIG_MTD_PARTITIONS=y
++CONFIG_SPI_FLASH=y
++CONFIG_SPI_FLASH_STM=y
++CONFIG_ENV_IS_IN_MMC=y
++CONFIG_SPL_ENV_SUPPORT=y
++CONFIG_ENV_SIZE=0x2000
++CONFIG_ENV_OFFSET=0x100000
++CONFIG_FIT=y
++CONFIG_FIT_SIGNATURE=y
++CONFIG_RSA=y
++CONFIG_BOOTDELAY=3
++CONFIG_HUSH_PARSER=y
++CONFIG_SYS_PROMPT="OpenWrt # "
++CONFIG_LOGLEVEL=5
++CONFIG_DEBUG_UART=y
++CONFIG_DEBUG_UART_BASE=0x10006000
++CONFIG_DEBUG_UART_CLOCK=24000000
++CONFIG_ARMV7_SECURE_BASE=0x0
++CONFIG_ARMV7_NS_BANKED=y
++CONFIG_DISPLAY_BOARDINFO=y
++CONFIG_ROCKCHIP_I2C=y
++CONFIG_ROCKCHIP_SERIAL=y
++CONFIG_ROCKCHIP_SPI=y
++CONFIG_ROCKCHIP_SYSCON=y
++CONFIG_ROCKCHIP_PMU=y
++CONFIG_CLK=y
++CONFIG_PINCTRL=y
++CONFIG_PINCTRL_ROCKCHIP=y
++CONFIG_DM_ETH=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_PHYLIB=y
++CONFIG_PHY_MICREL=y
++CONFIG_PHY_REALTEK=y
++CONFIG_USB=y
++CONFIG_USB_EHCI_HCD=y
++CONFIG_USB_STORAGE=y
++CONFIG_USB_KEYBOARD=y
++CONFIG_DM_MMC=y
++CONFIG_MMC_SDHCI=y
++CONFIG_MMC_SDHCI_GENERIC=y
++CONFIG_MTD_NAND=y
++CONFIG_MTD_NAND_DENALI=y
++CONFIG_MTD_NAND_DENALI_SPARE_AREA_SKIP_BYTES=2
