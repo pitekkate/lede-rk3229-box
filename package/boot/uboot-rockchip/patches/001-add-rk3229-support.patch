@@ -4,16 +4,16 @@ Date: Sat, 1 Jan 2023 12:00:00 +0000
 Subject: [PATCH] Add support for RK3229-based boards
 
 Add initial DTS and defconfig support for Rockchip RK3229 based boards,
-including Firefly-RK3229 and similar variants.
+including Firefly-RK3229 and generic RK3229 EVB.
 
 Signed-off-by: OpenWrt Developer <developer@openwrt.org>
 ---
  arch/arm/dts/Makefile                    |   1 +
- arch/arm/dts/rk3229-firefly-u-boot.dts | 128 +++++++++++++++++++++++++++++++
- configs/firefly_rk3229_defconfig      |  51 +++++++++++++
+ arch/arm/dts/rk3229-generic-u-boot.dts | 128 +++++++++++++++++++++++++++++++
+ configs/rk3229_generic_defconfig        |  51 +++++++++++++
  3 files changed, 180 insertions(+)
- create mode 100644 arch/arm/dts/rk3229-firefly-u-boot.dts
- create mode 100644 configs/firefly_rk3229_defconfig
+ create mode 100644 arch/arm/dts/rk3229-generic-u-boot.dts
+ create mode 100644 configs/rk3229_generic_defconfig
 
 diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
 index abcdef1..1234567 100644
@@ -23,22 +23,22 @@ index abcdef1..1234567 100644
         rk3228-evb.dtb \
         rk3228-h-evb-v10.dtb \
         rk3229-evb.dtb \
-+       rk3229-firefly-u-boot.dtb \
++       rk3229-generic-u-boot.dtb \
         rk3328-evb.dtb \
         rk3368-evb.dtb \
         veyron-mickey.dtb
-diff --git a/arch/arm/dts/rk3229-firefly-u-boot.dts b/arch/arm/dts/rk3229-firefly-u-boot.dts
+diff --git a/arch/arm/dts/rk3229-generic-u-boot.dts b/arch/arm/dts/rk3229-generic-u-boot.dts
 new file mode 100644
 index 0000000..deadbeef
 --- /dev/null
-+++ b/arch/arm/dts/rk3229-firefly-u-boot.dts
++++ b/arch/arm/dts/rk3229-generic-u-boot.dts
 @@ -0,0 +1,128 @@
 +/dts-v1/;
 +#include "rk3229.dtsi"
 +
 +/ {
-+	model = "Firefly RK3229 Board";
-+	compatible = "rockchip,rk3229-firefly", "rockchip,rk3229";
++	model = "Generic RK3229 Board";
++	compatible = "rockchip,rk3229", "rockchip,rk3229-box";
 +
 +	aliases {
 +		serial0 = &uart0;
@@ -73,12 +73,12 @@ index 0000000..deadbeef
 +		compatible = "gpio-leds";
 +
 +		power {
-+			label = "rk3229:red:power";
++			label = "red:power";
 +			gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
 +		};
 +
 +		heartbeat {
-+			label = "rk3229:green:heartbeat";
++			label = "green:heartbeat";
 +			gpios = <&gpio1 10 GPIO_ACTIVE_LOW>;
 +		};
 +	};
@@ -97,19 +97,19 @@ index 0000000..deadbeef
 +&wdt {
 +	status = "disabled";
 +};
-diff --git a/configs/firefly_rk3229_defconfig b/configs/firefly_rk3229_defconfig
+diff --git a/configs/rk3229_generic_defconfig b/configs/rk3229_generic_defconfig
 new file mode 100644
 index 0000000..feedcafe
 --- /dev/null
-+++ b/configs/firefly_rk3229_defconfig
++++ b/configs/rk3229_generic_defconfig
 @@ -0,0 +1,51 @@
 +CONFIG_ARM=y
 +CONFIG_ARCH_ROCKCHIP=y
 +CONFIG_MACH_RK3229=y
 +CONFIG_SYS_TEXT_BASE=0x00200000
 +CONFIG_SPL_STACK_R_ADDR=0x68100000
-+CONFIG_DEFAULT_DEVICE_TREE="rk3229-firefly-u-boot"
-+CONFIG_OF_LIST="rk3229-firefly-u-boot"
++CONFIG_DEFAULT_DEVICE_TREE="rk3229-generic-u-boot"
++CONFIG_OF_LIST="rk3229-generic-u-boot"
 +CONFIG_CMD_GPIO=y
 +CONFIG_CMD_I2C=y
 +CONFIG_CMD_MMC=y
